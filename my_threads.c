@@ -15,7 +15,7 @@ int uc_size = 0;
 int num_threads = 0; // number of contexts to init
 int active_threads = 0;
 
-void my_thr_create(void (*func) (int), int thr_id);
+void my_thr_create(int thr_id, void* (*func) (void*), void* arg);
 void my_thr_start();
 void my_thr_yield();
 void _exit_thread();
@@ -25,7 +25,7 @@ void _exit_thread();
  * this function also schedules each thread (FCFS), and
  * we set up each thread to start on a function that takes in an int when activated
  */
-void my_thr_create(void (*func) (int), int thr_id) {
+void my_thr_create(int thr_id, void* (*func) (void*), void* func_arg) {
     num_threads++;
     active_threads++;
 
@@ -46,7 +46,7 @@ void my_thr_create(void (*func) (int), int thr_id) {
     }
     exit_context.uc_stack.ss_size = STACK_SIZE;
     exit_context.uc_link = &main_thread;
-    makecontext (&exit_context, (void (*) (void)) _exit_thread, 0);
+    makecontext (&exit_context, _exit_thread, 0);
 
 
     // initialize the context for this thread
@@ -59,9 +59,8 @@ void my_thr_create(void (*func) (int), int thr_id) {
     // every thread goes into exit_context when finished
     uc[thr_id].uc_link = &exit_context;
 
-    makecontext (&uc[thr_id], (void (*) (void)) func, 1, thr_id);
+    makecontext (&uc[thr_id], (void (*) (void)) func, 1, func_arg);
 }
-
 
 // starts the first thread by switching from main
 void my_thr_start() {
@@ -80,8 +79,9 @@ void _exit_thread() {
     }
     if (active_threads > 0) {
         setcontext(&uc[0]); // set the next scheduled thread in motion
+    } else { // else, frees all the threads and return to the main thread
+        free(uc);
     }
-    // else return to the main thread (linked context)
 }
 
 // pauses execution of current thread and cooperatively yields
